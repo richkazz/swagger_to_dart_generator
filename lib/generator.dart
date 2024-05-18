@@ -3,8 +3,8 @@ import 'swagger_parser.dart';
 
 class DartGenerator {
   final SwaggerData swaggerData;
-
-  DartGenerator(this.swaggerData);
+  final String fileLocation;
+  DartGenerator(this.swaggerData, this.fileLocation);
 
   void generate() {
     generateModels();
@@ -27,9 +27,9 @@ class DartGenerator {
         bufferModel.writeln('export \'$fileName\';');
       }
     });
-    final file = File('lib/models/models.dart');
+    final file = File('$fileLocation\\models\\models.dart');
     file.writeAsStringSync(bufferModel.toString());
-    final fileEnum = File('lib/enums/enums.dart');
+    final fileEnum = File('$fileLocation\\enums\\enums.dart');
     fileEnum.writeAsStringSync(bufferEnum.toString());
   }
 
@@ -49,7 +49,7 @@ class DartGenerator {
     final buffer = StringBuffer();
     buffer.writeln('enum $className {');
     buffer.writeln('}');
-    final file = File('lib/enums/${name.snakeCase()}.dart');
+    final file = File('$fileLocation\\enums\\${name.snakeCase()}.dart');
     file.writeAsStringSync(buffer.toString());
     return '${name.snakeCase()}.dart';
   }
@@ -136,7 +136,7 @@ class DartGenerator {
 
     buffer.writeln('}');
 
-    final file = File('lib/models/${name.snakeCase()}.dart');
+    final file = File('$fileLocation\\models\\${name.snakeCase()}.dart');
     file.writeAsStringSync(buffer.toString());
 
     return '${name.snakeCase()}.dart';
@@ -247,7 +247,7 @@ class DartGenerator {
 
     buffer.writeln('}');
 
-    final file = File('lib/api_service.dart');
+    final file = File('$fileLocation\\api_service.dart');
     file.writeAsStringSync(buffer.toString());
   }
 
@@ -335,38 +335,10 @@ class DartGenerator {
     }
 
     buffer.writeln('      switch (response.statusCode) {');
+    for200(buffer, returnType, returnTypeWithoutList, throwErrorType, isArray);
+    for401(buffer, returnType, returnTypeWithoutList, throwErrorType, isArray);
+    for400(buffer, returnType, returnTypeWithoutList, throwErrorType, isArray);
 
-    // Handle 200 response
-    if (returnType != 'void') {
-      buffer.writeln('        case 200:');
-      if (isArray) {
-        buffer.writeln(
-            '          final result = (response.body as List<dynamic>).map((e) => $returnTypeWithoutList.fromJson(e)).toList();');
-      } else {
-        buffer.writeln(
-            '          final result = $returnType.fromJson(response.body);');
-      }
-      buffer.writeln(
-          '          return ${getReturnType(throwErrorType, returnType)}(data: result, isSuccess: true);');
-    } else {
-      buffer.writeln('        case 200:');
-      buffer.writeln(
-          '          return ${getReturnType(throwErrorType, returnType)}(isSuccess: true);');
-    }
-    buffer.writeln('        case 401:');
-    buffer.writeln('          throw UnAuthorizedException();');
-
-    if (throwErrorType.isNotEmpty) {
-      buffer.writeln('        case 400:');
-      buffer.writeln(
-          '          final result = $throwErrorType.fromJson(response.body);');
-      buffer.writeln(
-          '          return ${getReturnType(throwErrorType, returnType)}(errorData: result, isSuccess: true);');
-    } else {
-      buffer.writeln('        case 400:');
-      buffer.writeln(
-          '          throw Exception(\'Bad request: \${response.body}\');');
-    }
     // Handle other responses
     buffer.writeln('        default:');
     buffer.writeln(
@@ -378,6 +350,48 @@ class DartGenerator {
     buffer.writeln('      rethrow;');
     buffer.writeln('    }');
     buffer.writeln('  }');
+  }
+
+  void for401(StringBuffer buffer, String returnType,
+      String returnTypeWithoutList, String throwErrorType, bool isArray) {
+    buffer.writeln('        case 401:');
+    buffer.writeln('          throw UnAuthorizedException();');
+  }
+
+  void for400(StringBuffer buffer, String returnType,
+      String returnTypeWithoutList, String throwErrorType, bool isArray) {
+    if (throwErrorType.isNotEmpty) {
+      buffer.writeln('        case 400:');
+      buffer.writeln(
+          '          final result = $throwErrorType.fromJson(response.body);');
+      buffer.writeln(
+          '          return ${getReturnType(throwErrorType, returnType)}(errorData: result, isSuccess: true);');
+    } else {
+      buffer.writeln('        case 400:');
+      buffer.writeln(
+          '          throw Exception(\'Bad request: \${response.body}\');');
+    }
+  }
+
+  void for200(StringBuffer buffer, String returnType,
+      String returnTypeWithoutList, String throwErrorType, bool isArray) {
+    // Handle 200 response
+    if (returnType != 'void') {
+      buffer.writeln('        case 200:');
+      if (isArray) {
+        buffer.writeln(
+            '          final result = (response.body as List<dynamic>).map((e) => $returnTypeWithoutList.fromMap(e)).toList();');
+      } else {
+        buffer.writeln(
+            '          final result = $returnType.fromJson(response.body);');
+      }
+      buffer.writeln(
+          '          return ${getReturnType(throwErrorType, returnType)}(data: result, isSuccess: true);');
+    } else {
+      buffer.writeln('        case 200:');
+      buffer.writeln(
+          '          return ${getReturnType(throwErrorType, returnType)}(isSuccess: true);');
+    }
   }
 
   String getReturnType(String errorType, String returnType) {
