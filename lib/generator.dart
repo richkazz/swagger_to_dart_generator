@@ -6,9 +6,20 @@ class DartGenerator {
   final String fileLocation;
   DartGenerator(this.swaggerData, this.fileLocation);
   final modelNamesMap = <String>{};
+  final enumNamesMap = <String>{};
   void generate() {
     generateModels();
     generateService();
+  }
+
+  void fillTheNameSets(Map<String, dynamic> components) {
+    components.forEach((name, schema) {
+      if (schema.containsKey('enum')) {
+        enumNamesMap.add(name);
+      } else {
+        modelNamesMap.add(name);
+      }
+    });
   }
 
   void generateModels() {
@@ -17,17 +28,16 @@ class DartGenerator {
 
     final components =
         swaggerData.components['schemas'] as Map<String, dynamic>;
-    components.forEach((name, schema) {
-      if (schema.containsKey('enum')) {
-      } else {
-        modelNamesMap.add(name);
-      }
-    });
+    fillTheNameSets(components);
     components.forEach((name, schema) async {
       String fileName;
       if (schema.containsKey('enum')) {
-        fileName = generateEnum(name, schema);
-        bufferEnum.writeln('export \'$fileName\';');
+        final doseFileExist =
+            File('$fileLocation\\enums\\${name.snakeCase()}.dart').existsSync();
+        if (!doseFileExist) {
+          fileName = generateEnum(name, schema);
+        }
+        bufferEnum.writeln('export \'${name.snakeCase()}.dart\';');
       } else {
         fileName = generateModel(name, schema);
         bufferModel.writeln('export \'$fileName\';');
@@ -76,6 +86,9 @@ class DartGenerator {
     buffer.writeln('import \'dart:convert\';');
     fields.forEach((fieldName, fieldSchema) {
       final fieldType = getFieldType(fieldSchema);
+      if (enumNamesMap.contains(fieldType)) {
+        buffer.writeln('import \'../enums/enums.dart\';');
+      }
       if (modelNamesMap.contains(fieldType)) {
         buffer.writeln('import \'${fieldType.snakeCase()}.dart\';');
       }
@@ -84,64 +97,39 @@ class DartGenerator {
     buffer.writeln('class $className {');
 
     // Define fields
-    fields.forEach((fieldName, fieldSchema) {
-      final fieldType = getFieldType(fieldSchema);
-      final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
-      buffer.writeln('  final $fieldType$nullable $fieldName;');
-    });
+    defineFields(buffer, fields);
 
     // Constructor
-    buffer.writeln();
-    buffer.writeln('  $className({');
-    fields.forEach((fieldName, fieldSchema) {
-      final isRequired = isFieldTypeNull(fieldSchema) ? '' : 'required ';
-      buffer.writeln('    $isRequired this.$fieldName,');
-    });
-    buffer.writeln('  });');
+    defineConstructor(buffer, fields, className);
 
     // fromMap factory constructor
-    buffer.writeln();
-    buffer.writeln('  factory $className.fromMap(Map<String, dynamic> map) {');
-    buffer.writeln('    return $className(');
-    fields.forEach((fieldName, fieldSchema) {
-      final fieldType = getFieldType(fieldSchema);
-      final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
-      if (modelNamesMap.contains(fieldType)) {
-        buffer.writeln(
-            '      $fieldName: $fieldType.fromMap(map[\'$fieldName\']),');
-      } else {
-        buffer.writeln(
-            '      $fieldName: map[\'$fieldName\'] as $fieldType$nullable,');
-      }
-    });
-    buffer.writeln('    );');
-    buffer.writeln('  }');
+    defineFromMap(buffer, fields, className);
 
     // fromJson factory constructor
-    buffer.writeln();
-    buffer.writeln(
-        '  factory $className.fromJson(String source) => $className.fromMap(json.decode(source) as Map<String, dynamic>);');
-
+    defineFromJson(buffer, fields, className);
     // toMap method
-    buffer.writeln();
-    buffer.writeln('  Map<String, dynamic> toMap() {');
-    buffer.writeln('    return {');
-    fields.forEach((fieldName, fieldSchema) {
-      final fieldType = getFieldType(fieldSchema);
-      if (modelNamesMap.contains(fieldType)) {
-        buffer.writeln('      \'$fieldName\': $fieldName.toJson(),');
-      } else {
-        buffer.writeln('      \'$fieldName\': $fieldName,');
-      }
-    });
-    buffer.writeln('    };');
-    buffer.writeln('  }');
+    defineToMap(buffer, fields, className);
 
     // toJson method
+    defineToJson(buffer);
+    // copyWith method
+    defineCopyWith(buffer, fields, className);
+
+    buffer.writeln('}');
+
+    final file = File('$fileLocation\\models\\${name.snakeCase()}.dart');
+    file.writeAsStringSync(buffer.toString());
+
+    return '${name.snakeCase()}.dart';
+  }
+
+  void defineToJson(StringBuffer buffer) {
     buffer.writeln();
     buffer.writeln('  String toJson() => json.encode(toMap());');
+  }
 
-    // copyWith method
+  void defineCopyWith(
+      StringBuffer buffer, Map<String, dynamic> fields, String className) {
     buffer.writeln();
     buffer.writeln('  $className copyWith({');
     fields.forEach((fieldName, fieldSchema) {
@@ -155,13 +143,72 @@ class DartGenerator {
     });
     buffer.writeln('    );');
     buffer.writeln('  }');
+  }
 
-    buffer.writeln('}');
+  void defineToMap(
+      StringBuffer buffer, Map<String, dynamic> fields, String className) {
+    buffer.writeln();
+    buffer.writeln('  Map<String, dynamic> toMap() {');
+    buffer.writeln('    return {');
+    fields.forEach((fieldName, fieldSchema) {
+      final fieldType = getFieldType(fieldSchema);
+      if (modelNamesMap.contains(fieldType)) {
+        buffer.writeln('      \'$fieldName\': $fieldName.toJson(),');
+      } else {
+        buffer.writeln('      \'$fieldName\': $fieldName,');
+      }
+    });
+    buffer.writeln('    };');
+    buffer.writeln('  }');
+  }
 
-    final file = File('$fileLocation\\models\\${name.snakeCase()}.dart');
-    file.writeAsStringSync(buffer.toString());
+  void defineFromJson(
+      StringBuffer buffer, Map<String, dynamic> fields, String className) {
+    buffer.writeln();
+    buffer.writeln(
+        '  factory $className.fromJson(String source) => $className.fromMap(json.decode(source) as Map<String, dynamic>);');
+  }
 
-    return '${name.snakeCase()}.dart';
+  void defineFromMap(
+      StringBuffer buffer, Map<String, dynamic> fields, String className) {
+    buffer.writeln();
+    buffer.writeln('  factory $className.fromMap(Map<String, dynamic> map) {');
+    buffer.writeln('    return $className(');
+    fields.forEach((fieldName, fieldSchema) {
+      final fieldType = getFieldType(fieldSchema);
+      final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
+      if (modelNamesMap.contains(fieldType)) {
+        buffer.writeln(
+            '      $fieldName: $fieldType.fromMap(map[\'$fieldName\']),');
+      } else if (enumNamesMap.contains(fieldType)) {
+        buffer.writeln(
+            '      $fieldName: $fieldType.values[map[\'$fieldName\']  as int],');
+      } else {
+        buffer.writeln(
+            '      $fieldName: map[\'$fieldName\'] as $fieldType$nullable,');
+      }
+    });
+    buffer.writeln('    );');
+    buffer.writeln('  }');
+  }
+
+  void defineConstructor(
+      StringBuffer buffer, Map<String, dynamic> fields, String className) {
+    buffer.writeln();
+    buffer.writeln('  $className({');
+    fields.forEach((fieldName, fieldSchema) {
+      final isRequired = isFieldTypeNull(fieldSchema) ? '' : 'required ';
+      buffer.writeln('    $isRequired this.$fieldName,');
+    });
+    buffer.writeln('  });');
+  }
+
+  void defineFields(StringBuffer buffer, Map<String, dynamic> fields) {
+    fields.forEach((fieldName, fieldSchema) {
+      final fieldType = getFieldType(fieldSchema);
+      final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
+      buffer.writeln('  final $fieldType$nullable $fieldName;');
+    });
   }
 
   String mapSwaggerTypeToDart(String? type) {
@@ -280,9 +327,13 @@ class DartGenerator {
     String methodName = path.replaceAll('/', '');
     methodName = methodName.replaceAll('-', '').capitalize();
     methodName = methodName[0].toLowerCase() + methodName.substring(1);
+    if (methodName.contains('{')) {
+      methodName = methodName.substring(0, methodName.indexOf('{'));
+    }
     final summary = details['summary'];
     final responses = details['responses'];
     final requestBody = details['requestBody'];
+    final parameters = details['parameters'];
 
     // Determine the return type based on the response
     String returnType = 'void';
@@ -309,6 +360,11 @@ class DartGenerator {
         }
       }
     }
+    // get the parameters
+    final queryParameters = <String>[];
+    final buildQueryString = <String>[];
+    path = handelParameterSettingAndPathBuilding(
+        parameters, queryParameters, buildQueryString, path);
 
     if (requestBody != null && requestBody['content'] != null) {
       final content = requestBody['content'];
@@ -342,8 +398,11 @@ class DartGenerator {
 
     buffer.writeln('  // $summary');
     if (parameterType.isNotEmpty) {
+      queryParameters.add('required $parameterType request');
+    }
+    if (queryParameters.isNotEmpty) {
       buffer.writeln(
-          '  Future<${getReturnType(throwErrorType, returnType)}> $methodName($parameterType request) async {');
+          '  Future<${getReturnType(throwErrorType, returnType)}> $methodName({${queryParameters.join(', ')}}) async {');
     } else {
       buffer.writeln(
           '  Future<${getReturnType(throwErrorType, returnType)}> $methodName() async {');
@@ -373,6 +432,38 @@ class DartGenerator {
     buffer.writeln('      rethrow;');
     buffer.writeln('    }');
     buffer.writeln('  }');
+  }
+
+  String handelParameterSettingAndPathBuilding(
+      dynamic parameters,
+      List<String> queryParameters,
+      List<String> buildQueryString,
+      String path) {
+    if (parameters != null) {
+      for (var i = 0; i < parameters.length; i++) {
+        final parameter = parameters[i];
+        if (parameter['in'] == 'path') {
+          final type = mapSwaggerTypeToDart(parameter['schema']['type']);
+          final name = parameter['name'];
+          queryParameters.add('required $type $name');
+          continue;
+        }
+        if (parameter['in'] == 'query') {
+          final type = mapSwaggerTypeToDart(parameter['schema']['type']);
+          final name = parameter['name'];
+          queryParameters.add('required $type $name');
+          buildQueryString.add('${parameter['name']}=\$$name');
+          continue;
+        }
+      }
+    }
+    if (buildQueryString.isNotEmpty) {
+      path = '$path?${buildQueryString.join('&')}';
+    }
+
+    path = path.replaceAll('{', '\$');
+    path = path.replaceAll('}', '');
+    return path;
   }
 
   void for401(StringBuffer buffer, String returnType,
