@@ -5,8 +5,8 @@ import 'package:swagger_to_dart/generator.dart';
 
 void main(List<String> arguments) async {
   stdout.write("Enter the Swagger URL:");
-  //final swaggerUrl = stdin.readLineSync()!;
-  final swaggerUrl = 'http://localhost:5047/swagger/v1/swagger.json';
+  final swaggerUrl = stdin.readLineSync()!;
+  //final swaggerUrl = 'http://localhost:5047/swagger/v1/swagger.json';
   SwaggerParser parser;
   try {
     parser = SwaggerParser(swaggerUrl);
@@ -18,8 +18,8 @@ void main(List<String> arguments) async {
   }
   final swaggerData = await parser.parseSwaggerJson();
   stdout.write("Enter the path to generate dart files:");
-  String filePathToGenerate = 'C:\\Projects\\dart\\swagger_to_dart\\lib';
-  //String filePathToGenerate = stdin.readLineSync()!;
+  //String filePathToGenerate = 'C:\\Projects\\dart\\swagger_to_dart\\lib';
+  String filePathToGenerate = stdin.readLineSync()!;
   bool dosePathExist = await Directory(filePathToGenerate).exists();
   while (!dosePathExist) {
     stdout.write(
@@ -34,9 +34,19 @@ void main(List<String> arguments) async {
   await Directory('$filePathToGenerate\\generated\\models').create();
   await Directory('$filePathToGenerate\\generated\\enums').create();
 
-  final generator =
+  DartGenerator generator =
       DartGenerator(swaggerData, '$filePathToGenerate\\generated');
+  String quitReGeneration = 'y';
   generator.generate();
+  while (quitReGeneration == 'y') {
+    stdout.write('Do you want to re-generate files? (y/n):');
+    quitReGeneration = stdin.readLineSync()!;
+    if (quitReGeneration == 'y') {
+      final swaggerData = await parser.parseSwaggerJson();
+      generator = DartGenerator(swaggerData, '$filePathToGenerate\\generated');
+      generator.generate();
+    }
+  }
 
   print('Dart files generated successfully.');
   stdout.write('Press any key to exit...');
