@@ -55,6 +55,8 @@ class DartGenerator {
     final fieldType = mapSwaggerTypeToDart(fieldSchema['type']);
     if (fieldType == 'int') {
       isNull = fieldSchema['format'] != 'int64';
+    } else if (fieldType == 'dynamic') {
+      isNull = false;
     } else {
       isNull = fieldSchema['nullable'] == true;
     }
@@ -230,32 +232,6 @@ class DartGenerator {
   }
 
   void generateResultClass(StringBuffer buffer) {
-    /*
-    class Result<T, E> {
-  T? data;
-  E? errorData;
-  bool isSuccess;
-
-  Result({
-    this.data,
-    this.errorData,
-    required this.isSuccess,
-  });
-
-  Result<T,E> copyWith({
-    T? data,
-    bool? isSuccess,
-    E? errorData
-  }) {
-    return Result<T,E>(
-      data: data ?? this.data,
-      isSuccess: isSuccess ?? this.isSuccess,
-      errorData: errorData ?? this.errorData
-    );
-  }
-}
-    */
-
     buffer.writeln('class Result<T, E> {');
     buffer.writeln('  T? data;');
     buffer.writeln('  E? errorData;');
