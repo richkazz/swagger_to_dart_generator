@@ -137,7 +137,8 @@ class DartGenerator {
     buffer.writeln('  $className copyWith({');
     fields.forEach((fieldName, fieldSchema) {
       final fieldType = getFieldType(fieldSchema);
-      buffer.writeln('    $fieldType? $fieldName,');
+      buffer.writeln(
+          '    $fieldType${fieldType == 'dynamic' ? '' : '?'} $fieldName,');
     });
     buffer.writeln('  }) {');
     buffer.writeln('    return $className(');
