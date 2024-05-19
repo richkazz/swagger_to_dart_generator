@@ -7,6 +7,7 @@ class DartGenerator {
   DartGenerator(this.swaggerData, this.fileLocation);
   final modelNamesMap = <String>{};
   final enumNamesMap = <String>{};
+  final methodNamesMap = <String, int>{};
   void generate() {
     generateModels();
     generateService();
@@ -330,6 +331,7 @@ class DartGenerator {
     if (methodName.contains('{')) {
       methodName = methodName.substring(0, methodName.indexOf('{'));
     }
+
     final summary = details['summary'];
     final responses = details['responses'];
     final requestBody = details['requestBody'];
@@ -399,6 +401,15 @@ class DartGenerator {
     buffer.writeln('  // $summary');
     if (parameterType.isNotEmpty) {
       queryParameters.add('required $parameterType request');
+    }
+    //Determine if the method name already exists
+    //Then Generate a unique name
+    if (methodNamesMap.containsKey(methodName)) {
+      final newFeq = methodNamesMap[methodName]! + 1;
+      methodName = '$methodName$newFeq';
+      methodNamesMap.addAll({methodName: newFeq});
+    } else {
+      methodNamesMap.addAll({methodName: 1});
     }
     if (queryParameters.isNotEmpty) {
       buffer.writeln(
