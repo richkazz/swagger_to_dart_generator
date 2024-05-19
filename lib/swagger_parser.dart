@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class SwaggerParser {
@@ -16,8 +17,15 @@ class SwaggerParser {
   }
 
   Future<SwaggerData> parseSwaggerJson() async {
-    final json = await fetchSwaggerJson();
-    return SwaggerData.fromJson(json);
+    try {
+      final json = await fetchSwaggerJson();
+      return SwaggerData.fromJson(json);
+    } catch (e) {
+      stdout.writeln(
+          'Error while parsing Swagger JSON, might be invalid URL, or network error.');
+      stdout.writeln(e);
+      exit(1);
+    }
   }
 }
 
