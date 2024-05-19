@@ -6,7 +6,8 @@ import 'package:swagger_to_dart/generator.dart';
 void main(List<String> arguments) async {
   stdout.write("Enter the Swagger URL:");
   final swaggerUrl = stdin.readLineSync()!;
-  //final swaggerUrl = 'http://localhost:5198/swagger/v1/swagger.json';
+  // final swaggerUrl =
+  //     'http://progmadeeasy-001-site2.atempurl.com/swagger/v1/swagger.json';
   SwaggerParser parser;
   try {
     parser = SwaggerParser(swaggerUrl);
@@ -18,6 +19,7 @@ void main(List<String> arguments) async {
   }
   final swaggerData = await parser.parseSwaggerJson();
   stdout.write("Enter the path to generate dart files:");
+  //String filePathToGenerate = 'C:\\Projects\\dart\\swagger_to_dart\\lib';
   String filePathToGenerate = stdin.readLineSync()!;
   bool dosePathExist = await Directory(filePathToGenerate).exists();
   while (!dosePathExist) {

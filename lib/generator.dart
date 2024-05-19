@@ -5,7 +5,7 @@ class DartGenerator {
   final SwaggerData swaggerData;
   final String fileLocation;
   DartGenerator(this.swaggerData, this.fileLocation);
-
+  final modelNamesMap = <String>{};
   void generate() {
     generateModels();
     generateService();
@@ -18,6 +18,12 @@ class DartGenerator {
     final components =
         swaggerData.components['schemas'] as Map<String, dynamic>;
     components.forEach((name, schema) {
+      if (schema.containsKey('enum')) {
+      } else {
+        modelNamesMap.add(name);
+      }
+    });
+    components.forEach((name, schema) async {
       String fileName;
       if (schema.containsKey('enum')) {
         fileName = generateEnum(name, schema);
@@ -68,6 +74,12 @@ class DartGenerator {
 
     final buffer = StringBuffer();
     buffer.writeln('import \'dart:convert\';');
+    fields.forEach((fieldName, fieldSchema) {
+      final fieldType = getFieldType(fieldSchema);
+      if (modelNamesMap.contains(fieldType)) {
+        buffer.writeln('import \'${fieldType.snakeCase()}.dart\';');
+      }
+    });
     buffer.writeln();
     buffer.writeln('class $className {');
 
@@ -94,8 +106,13 @@ class DartGenerator {
     fields.forEach((fieldName, fieldSchema) {
       final fieldType = getFieldType(fieldSchema);
       final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
-      buffer.writeln(
-          '      $fieldName: map[\'$fieldName\'] as $fieldType$nullable,');
+      if (modelNamesMap.contains(fieldType)) {
+        buffer.writeln(
+            '      $fieldName: $fieldType.fromMap(map[\'$fieldName\']),');
+      } else {
+        buffer.writeln(
+            '      $fieldName: map[\'$fieldName\'] as $fieldType$nullable,');
+      }
     });
     buffer.writeln('    );');
     buffer.writeln('  }');
@@ -110,7 +127,12 @@ class DartGenerator {
     buffer.writeln('  Map<String, dynamic> toMap() {');
     buffer.writeln('    return {');
     fields.forEach((fieldName, fieldSchema) {
-      buffer.writeln('      \'$fieldName\': $fieldName,');
+      final fieldType = getFieldType(fieldSchema);
+      if (modelNamesMap.contains(fieldType)) {
+        buffer.writeln('      \'$fieldName\': $fieldName.toJson(),');
+      } else {
+        buffer.writeln('      \'$fieldName\': $fieldName,');
+      }
     });
     buffer.writeln('    };');
     buffer.writeln('  }');
@@ -217,6 +239,7 @@ class DartGenerator {
 
   void generateService() {
     final buffer = StringBuffer();
+    buffer.writeln('import \'dart:developer\';');
     buffer.writeln('import \'package:http/http.dart\' as http;');
     buffer.writeln('import \'models/models.dart\';');
     generateExceptionClass(buffer);
@@ -345,8 +368,8 @@ class DartGenerator {
         '          throw Exception(\'Unexpected error: \${response.statusCode} \${response.body}\');');
     buffer.writeln('      }');
     buffer.writeln('    } catch (error, stacktrace) {');
-    buffer.writeln('      print(\'Error: \$error\');');
-    buffer.writeln('      print(\'Stacktrace: \$stacktrace\');');
+    buffer.writeln('      log(\'Error: \$error\');');
+    buffer.writeln('      log(\'Stacktrace: \$stacktrace\');');
     buffer.writeln('      rethrow;');
     buffer.writeln('    }');
     buffer.writeln('  }');
