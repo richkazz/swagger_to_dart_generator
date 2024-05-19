@@ -76,7 +76,14 @@ class DartGenerator {
   String getFieldType(Map<String, dynamic> fieldSchema) {
     if (fieldSchema.containsKey('\$ref')) {
       return fieldSchema['\$ref'].split('/').last;
-    } else {
+    } else if (fieldSchema['type'] == 'array') {
+      // if (fieldSchema['items'].containsKey('\$ref')) {
+      //   return 'List<${fieldSchema['items']['\$ref'].split('/').last}>';
+      // }
+      final typeInList = getFieldType(fieldSchema['items']);
+      return 'List<$typeInList>';
+    }
+    {
       return mapSwaggerTypeToDart(fieldSchema['type']);
     }
   }
@@ -88,7 +95,13 @@ class DartGenerator {
     final buffer = StringBuffer();
     buffer.writeln('import \'dart:convert\';');
     fields.forEach((fieldName, fieldSchema) {
-      final fieldType = getFieldType(fieldSchema);
+      String fieldType = getFieldType(fieldSchema);
+      final isList = mapSwaggerTypeToDart(fieldSchema['type']) == 'List';
+      if (isList) {
+        fieldType = fieldType.replaceAll('List', '');
+        fieldType = fieldType.replaceAll('<', '');
+        fieldType = fieldType.replaceAll('>', '');
+      }
       if (enumNamesMap.contains(fieldType)) {
         buffer.writeln('import \'../enums/enums.dart\';');
       }
@@ -181,7 +194,19 @@ class DartGenerator {
     fields.forEach((fieldName, fieldSchema) {
       final fieldType = getFieldType(fieldSchema);
       final nullable = isFieldTypeNull(fieldSchema) ? '?' : '';
-      if (modelNamesMap.contains(fieldType)) {
+      final isList = mapSwaggerTypeToDart(fieldSchema['type']) == 'List';
+      if (isList) {
+        var fieldTypeRemoveList = fieldType.replaceAll('List', '');
+        fieldTypeRemoveList = fieldTypeRemoveList.replaceAll('<', '');
+        fieldTypeRemoveList = fieldTypeRemoveList.replaceAll('>', '');
+        if (modelNamesMap.contains(fieldTypeRemoveList)) {
+          buffer.writeln(
+              '      $fieldName: $fieldType.from(map[\'$fieldName\']?.map((x) => $fieldTypeRemoveList.fromMap(x))),');
+        } else {
+          buffer.writeln(
+              '      $fieldName:map[\'$fieldName\'] == null ? null :  $fieldType.from(map[\'$fieldName\']),');
+        }
+      } else if (modelNamesMap.contains(fieldType)) {
         buffer.writeln(
             '      $fieldName: $fieldType.fromMap(map[\'$fieldName\']),');
       } else if (enumNamesMap.contains(fieldType)) {
