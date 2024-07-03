@@ -3,14 +3,16 @@ import 'dart:io';
 import 'package:swagger_to_dart/swagger_parser.dart';
 import 'package:swagger_to_dart/generator.dart';
 
+//dart compile exe bin/swagger_to_dart.dart
+
 void main(List<String> arguments) async {
   stdout.write("Enter the Swagger URL:");
   final swaggerUrl = stdin.readLineSync()!;
-  //final swaggerUrl = 'http://localhost:5047/swagger/v1/swagger.json';
+  //final swaggerUrl = 'http://localhost:5045/swagger/v1/swagger.json';
   SwaggerParser parser = SwaggerParser(swaggerUrl);
   final swaggerData = await parser.parseSwaggerJson();
 
-  //String filePathToGenerate = 'C:\\Projects\\dart\\swagger_to_dart\\lib';
+  // String filePathToGenerate = 'C:\\Projects\\dart\\swagger_to_dart\\lib';
   final filePathToGenerate = await getDirectoryPathToGenerateFiles();
   await Directory('$filePathToGenerate\\generated').create();
   await Directory('$filePathToGenerate\\generated\\models').create();

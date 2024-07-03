@@ -111,25 +111,25 @@ class DartGenerator {
     });
     buffer.writeln();
     buffer.writeln('class $className {');
-
-    // Define fields
-    defineFields(buffer, fields);
-
     // Constructor
     defineConstructor(buffer, fields, className);
-
     // fromMap factory constructor
     defineFromMap(buffer, fields, className);
 
     // fromJson factory constructor
     defineFromJson(buffer, fields, className);
+
     // toMap method
     defineToMap(buffer, fields, className);
 
     // toJson method
     defineToJson(buffer);
+
     // copyWith method
     defineCopyWith(buffer, fields, className);
+
+    // Define fields
+    defineFields(buffer, fields);
 
     buffer.writeln('}');
 
@@ -171,6 +171,9 @@ class DartGenerator {
       final fieldType = getFieldType(fieldSchema);
       if (modelNamesMap.contains(fieldType)) {
         buffer.writeln('      \'$fieldName\': $fieldName.toJson(),');
+      }
+	  else if (enumNamesMap.contains(fieldType)) {
+        buffer.writeln('      \'$fieldName\': $fieldName.index,');
       } else {
         buffer.writeln('      \'$fieldName\': $fieldName,');
       }
@@ -189,7 +192,7 @@ class DartGenerator {
   void defineFromMap(
       StringBuffer buffer, Map<String, dynamic> fields, String className) {
     buffer.writeln();
-    buffer.writeln('  factory $className.fromMap(Map<String, dynamic> map) {');
+    buffer.writeln('  factory $className.fromMap(Map<String, dynamic> map,) {');
     buffer.writeln('    return $className(');
     fields.forEach((fieldName, fieldSchema) {
       final fieldType = getFieldType(fieldSchema);
@@ -200,15 +203,27 @@ class DartGenerator {
         fieldTypeRemoveList = fieldTypeRemoveList.replaceAll('<', '');
         fieldTypeRemoveList = fieldTypeRemoveList.replaceAll('>', '');
         if (modelNamesMap.contains(fieldTypeRemoveList)) {
-          buffer.writeln(
-              '      $fieldName: $fieldType.from(map[\'$fieldName\']?.map((x) => $fieldTypeRemoveList.fromMap(x))),');
+          if (nullable == '?') {
+            buffer.writeln('$fieldName: map[\'$fieldName\'] == null');
+            buffer.writeln('? null');
+            buffer.writeln(': (map[\'$fieldName\'] as List<dynamic>)');
+            buffer.writeln(
+                '.map((e) => $fieldTypeRemoveList.fromMap(e as Map<String, dynamic>))');
+            buffer.writeln('.toList(),');
+          } else {
+            buffer
+                .writeln('$fieldName: (map[\'$fieldName\'] as List<dynamic>)');
+            buffer.writeln(
+                '.map((e) => $fieldTypeRemoveList.fromMap(e as Map<String, dynamic>))');
+            buffer.writeln('.toList(),');
+          }
         } else {
           buffer.writeln(
-              '      $fieldName:map[\'$fieldName\'] == null ? null :  $fieldType.from(map[\'$fieldName\']),');
+              '      $fieldName:map[\'$fieldName\'] == null ? null :  $fieldType.from(map[\'$fieldName\'] as List<dynamic>),');
         }
       } else if (modelNamesMap.contains(fieldType)) {
         buffer.writeln(
-            '      $fieldName: $fieldType.fromMap(map[\'$fieldName\']),');
+            '      $fieldName: $fieldType.fromMap(map[\'$fieldName\'] as Map<String, dynamic>),');
       } else if (enumNamesMap.contains(fieldType)) {
         buffer.writeln(
             '      $fieldName: $fieldType.values[map[\'$fieldName\']  as int],');
@@ -507,7 +522,7 @@ class DartGenerator {
       buffer.writeln('        case 200:');
       if (isArray) {
         buffer.writeln(
-            '          final result = (response.body as List<dynamic>).map((e) => $returnTypeWithoutList.fromMap(e)).toList();');
+            '          final result = (response.body as List<dynamic>).map((e) => $returnTypeWithoutList.fromMap(e as Map<String, dynamic>)).toList();');
       } else {
         buffer.writeln(
             '          final result = $returnType.fromJson(response.body);');
