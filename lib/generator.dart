@@ -33,12 +33,15 @@ class DartGenerator {
     components.forEach((name, schema) async {
       String fileName;
       if (schema.containsKey('enum')) {
+        fileName = generateEnum(name, schema);
         final doseFileExist =
-            File('$fileLocation\\enums\\${name.snakeCase()}.dart').existsSync();
+            File('$fileLocation\\enums\\${name.snakeCase()}_extension.dart')
+                .existsSync();
         if (!doseFileExist) {
-          fileName = generateEnum(name, schema);
+          generateEnumExtension(name, schema);
         }
         bufferEnum.writeln('export \'${name.snakeCase()}.dart\';');
+        bufferEnum.writeln('export \'${name.snakeCase()}_extension.dart\';');
       } else {
         fileName = generateModel(name, schema);
         bufferModel.writeln('export \'$fileName\';');
@@ -67,8 +70,36 @@ class DartGenerator {
     final className = name.capitalize();
     final buffer = StringBuffer();
     buffer.writeln('enum $className {');
+    final fields = schema['enum'] as List<dynamic>;
+    for (var i = 0; i < fields.length; i++) {
+      final field = fields[i] as String;
+      buffer.write(field.firstLetterLowerCase());
+      if (i != fields.length - 1) {
+        buffer.write(',');
+      } else {
+        buffer.write(';');
+      }
+      buffer.writeln('');
+    }
+    buffer.writeln('');
+    for (var i = 0; i < fields.length; i++) {
+      final field = fields[i] as String;
+      buffer.writeln(
+          'bool get is$field => this == $className.${field.firstLetterLowerCase()};');
+    }
     buffer.writeln('}');
     final file = File('$fileLocation\\enums\\${name.snakeCase()}.dart');
+    file.writeAsStringSync(buffer.toString());
+    return '${name.snakeCase()}.dart';
+  }
+
+  String generateEnumExtension(String name, Map<String, dynamic> schema) {
+    final className = name.capitalize();
+    final buffer = StringBuffer();
+    buffer.writeln('import \'../enums/enums.dart\';');
+    buffer.writeln('extension ${className}Extension on $className {}');
+    final file =
+        File('$fileLocation\\enums\\${name.snakeCase()}_extension.dart');
     file.writeAsStringSync(buffer.toString());
     return '${name.snakeCase()}.dart';
   }
@@ -171,8 +202,7 @@ class DartGenerator {
       final fieldType = getFieldType(fieldSchema);
       if (modelNamesMap.contains(fieldType)) {
         buffer.writeln('      \'$fieldName\': $fieldName.toJson(),');
-      }
-	  else if (enumNamesMap.contains(fieldType)) {
+      } else if (enumNamesMap.contains(fieldType)) {
         buffer.writeln('      \'$fieldName\': $fieldName.index,');
       } else {
         buffer.writeln('      \'$fieldName\': $fieldName,');
@@ -304,6 +334,7 @@ class DartGenerator {
 
   void generateService() {
     final buffer = StringBuffer();
+    buffer.writeln('import \'dart:convert\';');
     buffer.writeln('import \'dart:developer\';');
     buffer.writeln('import \'package:http/http.dart\' as http;');
     buffer.writeln('import \'models/models.dart\';');
@@ -522,7 +553,7 @@ class DartGenerator {
       buffer.writeln('        case 200:');
       if (isArray) {
         buffer.writeln(
-            '          final result = (response.body as List<dynamic>).map((e) => $returnTypeWithoutList.fromMap(e as Map<String, dynamic>)).toList();');
+            '          final result = (json.decode(response.body) as List<dynamic>).map((e) => $returnTypeWithoutList.fromMap(e as Map<String, dynamic>)).toList();');
       } else {
         buffer.writeln(
             '          final result = $returnType.fromJson(response.body);');
@@ -554,4 +585,6 @@ extension StringExtension on String {
   String snakeCase() => replaceAllMapped(
           RegExp(r'[A-Z]'), (match) => '_${match.group(0)!.toLowerCase()}')
       .substring(1);
+  //first letter lowercase
+  String firstLetterLowerCase() => substring(0, 1).toLowerCase() + substring(1);
 }
